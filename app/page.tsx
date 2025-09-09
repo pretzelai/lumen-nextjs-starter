@@ -17,6 +17,7 @@ import {
   Command,
   Sparkles,
   Layers,
+  MessageCircle,
 } from "lucide-react";
 import { COMPANY_NAME, COMPANY_DESCRIPTION } from "@/lib/constants";
 
@@ -103,6 +104,26 @@ export default function Home() {
         <p className="mt-3 text-xs text-muted-foreground">
           No credit card required
         </p>
+      </section>
+
+      {/* AI Chat Example Card */}
+      <section className="container mx-auto max-w-6xl px-4 py-8">
+        <Card className="max-w-2xl mx-auto border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-fit rounded-full bg-primary/10 p-4 mb-4">
+              <MessageCircle className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">AI Chat Example</CardTitle>
+            <CardDescription className="text-base">
+              Try out the AI-powered chat feature built with Lumen integration
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button size="lg" asChild className="w-full sm:w-auto">
+              <Link href="/chat">See AI Chat Example</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="container mx-auto max-w-6xl px-4 pb-8">
