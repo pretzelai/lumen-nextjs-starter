@@ -1,0 +1,140 @@
+---
+description: Lumen Payments
+globs:
+alwaysApply: true
+---
+
+## Payments
+
+The payments in this project are managed by Lumen Payments (aka Lumen)
+Lumen Payments is a SaaS that abstracts the complicated things about billing and provides and easy to use API.
+
+Lumen Payments is a Billing Enginer and uses third party payment providers to process payments (e.g. Stripe).
+The code in this repository should not reference Stripe or any other payment providers.
+The payment providers are set up in the Lumen Dashboard via no code.
+The code in this repository only uses lumen APIs imported from @getlumen/server or @getlumen/react
+
+Lumen takes care of entitlements and all billing modes including credits and usage based billing. It also listens to webhooks so you don't need to manage webhooks from any payment provider in this repository.
+
+Feature names can be set up in the dashboard, you can assume when writing the code that any feature exists. It is up to the user to set up properly in the dashboard.
+
+Here are examples of how Lumen implementation would look like in NextJS
+
+app/api/chat/route.ts
+
+```ts
+import { openai } from "@ai-sdk/openai";
+import { streamText, UIMessage, convertToModelMessages } from "ai";
+import { createClient } from "@/lib/supabase/server";
+import { sendEvent, isFeatureEntitled } from "@getlumen/server";
+
+// Allow streaming responses up to 30 seconds
+export const maxDuration = 30;
+
+const FEATURE_NAME = "chat-messages";
+
+export async function POST(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  if (
+    await isFeatureEntitled({
+      feature: FEATURE_NAME,
+      userId: user.id,
+    })
+  ) {
+    const { messages }: { messages: UIMessage[] } = await req.json();
+
+    const result = streamText({
+      model: openai("gpt-4o"),
+      messages: convertToModelMessages(messages),
+    });
+    await sendEvent({
+      name: FEATURE_NAME,
+      userId: user.id,
+      value: 1,
+    });
+    return result.toUIMessageStreamResponse();
+  }
+}
+```
+
+Lumen provides a shadcn pricing table component that can be easily installed by running: npx shadcn@latest add https://getlumen.dev/pricing-table.json
+
+Then you can implement a page like
+app/pricing/page.tsx
+
+```tsx
+import { PricingTable } from "@/components/ui/pricing-table";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+
+export default async function PricingPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return redirect("/sign-in");
+  }
+
+  return (
+    <PricingTable
+      userId={user.id}
+      loginRedirectUrl="/sign-in"
+      lumenPublishableKey="pk_live_xxxxxxxxxxxxxxx"
+    />
+  );
+}
+```
+
+lumenPublishableKey can be obtained by visiting https://getlumen.dev/developer/apikeys
+
+Once the user selects a plan the features get automatically assigned to their user id, so a simple chat page looks like this:
+
+```tsx
+"use client";
+
+import { useChat } from "@ai-sdk/react";
+import { useState } from "react";
+
+export default function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat();
+  return (
+    <div className="flex flex-col w-full max-w-md py-24 mx-auto stretch">
+      {messages.map((message) => (
+        <div key={message.id} className="whitespace-pre-wrap">
+          {message.role === "user" ? "User: " : "AI: "}
+          {message.parts.map((part, i) => {
+            switch (part.type) {
+              case "text":
+                return <div key={`${message.id}-${i}`}>{part.text}</div>;
+            }
+          })}
+        </div>
+      ))}
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          sendMessage({ text: input });
+          setInput("");
+        }}
+      >
+        <input
+          className="fixed dark:bg-zinc-900 bottom-0 w-full max-w-md p-2 mb-8 border border-zinc-300 dark:border-zinc-800 rounded shadow-xl"
+          value={input}
+          placeholder="Say something..."
+          onChange={(e) => setInput(e.currentTarget.value)}
+        />
+      </form>
+    </div>
+  );
+}
+```
